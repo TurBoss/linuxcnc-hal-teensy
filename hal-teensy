@@ -28,6 +28,16 @@ def send_to_teensy(addr, data):
     teensy.flush()
 
 
+def handle_digital_inputs(data):
+    h.digital_in_0 = (data >> 0) & 0x01
+    h.digital_in_1 = (data >> 1) & 0x01
+    h.digital_in_2 = (data >> 2) & 0x01
+    h.digital_in_3 = (data >> 3) & 0x01
+    h.digital_in_4 = (data >> 4) & 0x01
+    h.digital_in_5 = (data >> 5) & 0x01
+    h.digital_in_6 = (data >> 6) & 0x01
+
+
 def handle_packet_from_teensy(buffer):
     addr = (buffer[0] & 0x70) >> 4
     data = (buffer[0] & 0x0f) << 12
@@ -36,7 +46,10 @@ def handle_packet_from_teensy(buffer):
 
     #print "teensy: read A=%d, D=0x%04x (0x%02x 0x%02x 0x%02x)" % (addr, data, buffer[0], buffer[1], buffer[2])
 
-    print "unhandled address %d" % addr
+    if addr == 0:
+        handle_digital_inputs(data)
+    else:
+        print "unhandled address %d" % addr
 
 
 def read_from_teensy():
@@ -80,6 +93,14 @@ h.newpin("digital_out_2", hal.HAL_BIT, hal.HAL_IN)
 h.newpin("digital_out_3", hal.HAL_BIT, hal.HAL_IN)
 h.newpin("digital_out_4", hal.HAL_BIT, hal.HAL_IN)
 h.newpin("digital_out_5", hal.HAL_BIT, hal.HAL_IN)
+
+h.newpin("digital_in_0", hal.HAL_BIT, hal.HAL_OUT)
+h.newpin("digital_in_1", hal.HAL_BIT, hal.HAL_OUT)
+h.newpin("digital_in_2", hal.HAL_BIT, hal.HAL_OUT)
+h.newpin("digital_in_3", hal.HAL_BIT, hal.HAL_OUT)
+h.newpin("digital_in_4", hal.HAL_BIT, hal.HAL_OUT)
+h.newpin("digital_in_5", hal.HAL_BIT, hal.HAL_OUT)
+h.newpin("digital_in_6", hal.HAL_BIT, hal.HAL_OUT)
 
 h.ready()
 

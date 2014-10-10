@@ -56,6 +56,21 @@ void usb_send_packet(int addr, uint16_t data) {
 }
 
 
+void usb_send_digital_inputs(void) {
+    uint8_t addr;   // 3 bits used
+    uint16_t data;  // all 16 bits used
+
+    addr = 0;
+    data = 0;
+    for (int i = 0; i < 7; i ++) {
+        if (digitalRead(i)) {
+            data |= 1<<i;
+        }
+    }
+    usb_send_packet(addr, data);
+}
+
+
 void handle_digital_outputs(uint16_t data) {
     for (int i = 0; i < 7; i ++) {
         if (data & (1<<i)) {
@@ -170,6 +185,15 @@ void read_usb(void) {
 
 
 extern "C" int main(void) {
+    // digital inputs
+    pinMode(0, INPUT);
+    pinMode(1, INPUT);
+    pinMode(2, INPUT);
+    pinMode(3, INPUT);
+    pinMode(4, INPUT);
+    pinMode(5, INPUT);
+    pinMode(6, INPUT);
+
     // digital outputs
     pinMode(7, OUTPUT);
     pinMode(8, OUTPUT);
@@ -184,6 +208,7 @@ extern "C" int main(void) {
     blink(2, 50);
 
     while (1) {
+        usb_send_digital_inputs();
         read_usb();
         delay(10);
     }

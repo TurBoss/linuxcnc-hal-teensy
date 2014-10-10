@@ -39,6 +39,12 @@ The leading bits make the protocol self-synchronizing.  Inspired by Jeff
 Epler's Arduino/HAL protocol: http://emergent.unpythonic.net/01198594294
 
 
+Teensy->PC registers
+--------------------
+
+    0:  digital inputs, D00-D07, Teensy pins 0-6
+
+
 PC->Teensy registers
 --------------------
 
