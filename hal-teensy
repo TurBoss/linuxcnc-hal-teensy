@@ -1,0 +1,85 @@
+#!/usr/bin/python
+
+import sys
+import hal
+import time
+import serial
+
+
+def send_to_teensy(addr, data):
+    out_byte_0 = 0x00
+    out_byte_1 = 0x80
+    out_byte_2 = 0xc0
+
+    addr &= 0x7
+    data &= 0xffff
+
+    out_byte_0 |= (addr << 4)
+    out_byte_0 |= (data >> 12)
+
+    out_byte_1 |= (data & 0x0fc0) >> 6
+
+    out_byte_2 |= data & 0x003f
+
+    #print "teensy: writing A=%d, D=0x%04x (0x%02x 0x%02x 0x%02x)" % (addr, data, out_byte_0, out_byte_1, out_byte_2)
+    teensy.write(chr(out_byte_0))
+    teensy.write(chr(out_byte_1))
+    teensy.write(chr(out_byte_2))
+    teensy.flush()
+
+
+def handle_packet_from_teensy(buffer):
+    addr = (buffer[0] & 0x70) >> 4
+    data = (buffer[0] & 0x0f) << 12
+    data |= (buffer[1] & 0x3f) << 6
+    data |= (buffer[2] & 0x3f)
+
+    #print "teensy: read A=%d, D=0x%04x (0x%02x 0x%02x 0x%02x)" % (addr, data, buffer[0], buffer[1], buffer[2])
+
+    print "unhandled address %d" % addr
+
+
+def read_from_teensy():
+    if not hasattr(read_from_teensy, "buffer"):
+        read_from_teensy.buffer = bytearray()
+
+    in_str = teensy.read(20)
+    for in_chr in in_str:
+        in_byte = ord(in_chr)
+        if (in_byte & 0x80) == 0x00:
+            read_from_teensy.buffer = bytearray()
+            read_from_teensy.buffer.append(in_byte)
+
+        elif ((in_byte & 0xc0) == 0x80) and (len(read_from_teensy.buffer) == 1):
+            read_from_teensy.buffer.append(in_byte)
+
+        elif ((in_byte & 0xc0) == 0xc0) and (len(read_from_teensy.buffer) == 2):
+            read_from_teensy.buffer.append(in_byte)
+            handle_packet_from_teensy(read_from_teensy.buffer)
+            read_from_teensy.buffer = bytearray()
+
+        else:
+            # read an invalid byte
+            print "discarding bogus packet"
+            read_from_teensy.buffer = bytearray()
+
+
+dev='/dev/ttyACM0'
+if len(sys.argv) == 2:
+    dev = sys.argv[1]
+
+teensy = serial.Serial(port=dev, baudrate=9600, timeout=0.1)
+
+h = hal.component('teensy')
+
+h.ready()
+
+try:
+    while True:
+        read_from_teensy()
+
+except KeyboardInterrupt:
+    print 'bye\n'
+    teensy.close()
+    h.exit()
+
