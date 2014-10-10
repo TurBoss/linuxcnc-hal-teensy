@@ -56,6 +56,22 @@ void usb_send_packet(int addr, uint16_t data) {
 }
 
 
+void handle_digital_outputs(uint16_t data) {
+    for (int i = 0; i < 7; i ++) {
+        if (data & (1<<i)) {
+            digitalWriteFast(7+i, HIGH);
+        } else {
+            digitalWriteFast(7+i, LOW);
+        }
+    }
+    if (data & (1 << 6)) {
+        led_state = HIGH;
+    } else {
+        led_state = LOW;
+    }
+}
+
+
 void handle_incoming_packet(uint8_t buf[3]) {
     uint8_t addr;
     uint16_t data;
@@ -66,6 +82,11 @@ void handle_incoming_packet(uint8_t buf[3]) {
     data |= (buf[2] & 0x3f);
 
     switch (addr) {
+        case 0:
+            // digital outputs
+            handle_digital_outputs(data);
+            break;
+
         default:
             // unhandled packet!
             blink(4, 100);
@@ -149,6 +170,14 @@ void read_usb(void) {
 
 
 extern "C" int main(void) {
+    // digital outputs
+    pinMode(7, OUTPUT);
+    pinMode(8, OUTPUT);
+    pinMode(9, OUTPUT);
+    pinMode(10, OUTPUT);
+    pinMode(11, OUTPUT);
+    pinMode(12, OUTPUT);
+
     // LED (acts like a digital output)
     pinMode(13, OUTPUT);
 

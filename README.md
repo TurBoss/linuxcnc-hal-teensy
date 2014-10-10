@@ -37,3 +37,9 @@ of data, using this format:
 
 The leading bits make the protocol self-synchronizing.  Inspired by Jeff
 Epler's Arduino/HAL protocol: http://emergent.unpythonic.net/01198594294
+
+
+PC->Teensy registers
+--------------------
+
+    0: digital outputs, D00-D07, Teensy pins 7-13 (LED on pin 13)

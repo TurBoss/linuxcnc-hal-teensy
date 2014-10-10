@@ -72,10 +72,45 @@ teensy = serial.Serial(port=dev, baudrate=9600, timeout=0.1)
 
 h = hal.component('teensy')
 
+h.newpin("led", hal.HAL_BIT, hal.HAL_IN)
+
+h.newpin("digital_out_0", hal.HAL_BIT, hal.HAL_IN)
+h.newpin("digital_out_1", hal.HAL_BIT, hal.HAL_IN)
+h.newpin("digital_out_2", hal.HAL_BIT, hal.HAL_IN)
+h.newpin("digital_out_3", hal.HAL_BIT, hal.HAL_IN)
+h.newpin("digital_out_4", hal.HAL_BIT, hal.HAL_IN)
+h.newpin("digital_out_5", hal.HAL_BIT, hal.HAL_IN)
+
 h.ready()
+
+h.led = True
+h.digital_out_0 = False
+h.digital_out_1 = False
+h.digital_out_2 = False
+h.digital_out_3 = False
+h.digital_out_4 = False
+h.digital_out_5 = False
+
+written_dout = [True, True, True, True, True, True]
+written_led = False
 
 try:
     while True:
+        # digital outputs
+        data = 0x0000
+        do_write = False
+        for pin in range(0, 6):
+            if h['digital_out_%d' % pin] != written_dout[pin]:
+                do_write = True
+            data |= h['digital_out_%d' % pin] << pin
+            written_dout[pin] = h['digital_out_%d' % pin]
+        if h['led'] != written_led:
+            do_write = True
+        data |= h['led'] << 6
+        written_led = h['led']
+        if do_write:
+            send_to_teensy(0, data)
+
         read_from_teensy()
 
 except KeyboardInterrupt:
