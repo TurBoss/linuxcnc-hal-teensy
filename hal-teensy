@@ -28,6 +28,12 @@ def send_to_teensy(addr, data):
     teensy.flush()
 
 
+def send_pwm_to_teensy(channel):
+    addr = channel + 2
+    data = int(h['pwm_%d' % channel] * 0xff)
+    send_to_teensy(addr, data)
+
+
 # The hal pin is a float voltage.  The DAC has 12 bits of resolution, but
 # we pretend it has 16 for future-proof-ness.
 def send_dac_to_teensy(channel):
@@ -126,6 +132,11 @@ h.newpin("digital_out_5", hal.HAL_BIT, hal.HAL_IN)
 
 h.newpin("analog_out_0", hal.HAL_FLOAT, hal.HAL_IN)
 
+h.newpin("pwm_0", hal.HAL_FLOAT, hal.HAL_IN)
+h.newpin("pwm_1", hal.HAL_FLOAT, hal.HAL_IN)
+h.newpin("pwm_2", hal.HAL_FLOAT, hal.HAL_IN)
+h.newpin("pwm_3", hal.HAL_FLOAT, hal.HAL_IN)
+
 h.newpin("digital_in_0", hal.HAL_BIT, hal.HAL_OUT)
 h.newpin("digital_in_1", hal.HAL_BIT, hal.HAL_OUT)
 h.newpin("digital_in_2", hal.HAL_BIT, hal.HAL_OUT)
@@ -148,9 +159,15 @@ h.digital_out_4 = False
 h.digital_out_5 = False
 h.analog_out_0 = 0.0
 
+h.pwm_0 = 0.0
+h.pwm_1 = 0.0
+h.pwm_2 = 0.0
+h.pwm_3 = 0.0
+
 written_dout = [True, True, True, True, True, True]
 written_aout = [-9.9]
 written_led = False
+written_pwm = [ 1.0, 1.0, 1.0, 1.0 ]
 
 try:
     while True:
@@ -176,6 +193,12 @@ try:
         written_aout[0] = h['analog_out_0']
         if do_write:
             send_dac_to_teensy(0)
+
+        # pwm outputs
+        for pin in range(0, 4):
+            if h['pwm_%d' % pin] != written_pwm[pin]:
+                send_pwm_to_teensy(pin)
+                written_pwm[pin] = h['pwm_%d' % pin]
 
         read_from_teensy()
 

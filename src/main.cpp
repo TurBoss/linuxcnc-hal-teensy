@@ -108,6 +108,11 @@ void handle_analog_output_0(uint16_t data) {
 }
 
 
+void handle_pwm_channel(int channel, uint16_t data) {
+    analogWrite(20 + channel, data);
+}
+
+
 void handle_incoming_packet(uint8_t buf[3]) {
     uint8_t addr;
     uint16_t data;
@@ -126,6 +131,13 @@ void handle_incoming_packet(uint8_t buf[3]) {
         case 1:
             // analog output
             handle_analog_output_0(data);
+            break;
+
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+            handle_pwm_channel(addr-2, data);
             break;
 
         default:
