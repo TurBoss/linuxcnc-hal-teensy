@@ -38,6 +38,12 @@ def handle_digital_inputs(data):
     h.digital_in_6 = (data >> 6) & 0x01
 
 
+def handle_analog_in(channel, value):
+    max_voltage = 3.300
+    pin = "analog_in_%d" % channel
+    h[pin] = (value * max_voltage) / 2**16
+
+
 def handle_packet_from_teensy(buffer):
     addr = (buffer[0] & 0x70) >> 4
     data = (buffer[0] & 0x0f) << 12
@@ -48,6 +54,10 @@ def handle_packet_from_teensy(buffer):
 
     if addr == 0:
         handle_digital_inputs(data)
+    elif addr == 1:
+        handle_analog_in(0, data)
+    elif addr == 2:
+        handle_analog_in(1, data)
     else:
         print "unhandled address %d" % addr
 
@@ -101,6 +111,9 @@ h.newpin("digital_in_3", hal.HAL_BIT, hal.HAL_OUT)
 h.newpin("digital_in_4", hal.HAL_BIT, hal.HAL_OUT)
 h.newpin("digital_in_5", hal.HAL_BIT, hal.HAL_OUT)
 h.newpin("digital_in_6", hal.HAL_BIT, hal.HAL_OUT)
+
+h.newpin("analog_in_0", hal.HAL_FLOAT, hal.HAL_OUT)
+h.newpin("analog_in_1", hal.HAL_FLOAT, hal.HAL_OUT)
 
 h.ready()
 

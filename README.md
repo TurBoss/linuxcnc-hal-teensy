@@ -43,6 +43,8 @@ Teensy->PC registers
 --------------------
 
     0:  digital inputs, D00-D07, Teensy pins 0-6
+    1:  analog input 0, 16 bits resolution, Teensy pin A0
+    2:  analog input 1, 16 bits resolution, Teensy pin A1
 
 
 PC->Teensy registers

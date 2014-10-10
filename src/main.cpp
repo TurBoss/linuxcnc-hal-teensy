@@ -71,6 +71,20 @@ void usb_send_digital_inputs(void) {
 }
 
 
+void usb_send_analog_inputs(void) {
+    uint8_t addr;
+    uint16_t data;
+
+    addr = 1;
+    data = analogRead(14);
+    usb_send_packet(addr, data);
+
+    addr = 2;
+    data = analogRead(15);
+    usb_send_packet(addr, data);
+}
+
+
 void handle_digital_outputs(uint16_t data) {
     for (int i = 0; i < 7; i ++) {
         if (data & (1<<i)) {
@@ -185,6 +199,8 @@ void read_usb(void) {
 
 
 extern "C" int main(void) {
+    analogReadRes(16);
+
     // digital inputs
     pinMode(0, INPUT);
     pinMode(1, INPUT);
@@ -209,6 +225,7 @@ extern "C" int main(void) {
 
     while (1) {
         usb_send_digital_inputs();
+        usb_send_analog_inputs();
         read_usb();
         delay(10);
     }
