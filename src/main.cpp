@@ -101,6 +101,13 @@ void handle_digital_outputs(uint16_t data) {
 }
 
 
+// data is 16 bits, but the actual analog output is only 12
+void handle_analog_output_0(uint16_t data) {
+    data >>= 4;
+    analogWriteDAC0(data);
+}
+
+
 void handle_incoming_packet(uint8_t buf[3]) {
     uint8_t addr;
     uint16_t data;
@@ -114,6 +121,11 @@ void handle_incoming_packet(uint8_t buf[3]) {
         case 0:
             // digital outputs
             handle_digital_outputs(data);
+            break;
+
+        case 1:
+            // analog output
+            handle_analog_output_0(data);
             break;
 
         default:

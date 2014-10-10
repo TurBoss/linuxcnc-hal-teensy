@@ -51,3 +51,4 @@ PC->Teensy registers
 --------------------
 
     0: digital outputs, D00-D07, Teensy pins 7-13 (LED on pin 13)
+    1: DAC 0, 12 bits resolution, D04-D15 used, D00-D03 ignored, Teensy pin A14
