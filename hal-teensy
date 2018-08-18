@@ -4,6 +4,7 @@ import sys
 import hal
 import time
 import serial
+import math
 
 
 def send_to_teensy(addr, data):
@@ -28,9 +29,16 @@ def send_to_teensy(addr, data):
     teensy.flush()
 
 
+# The HAL pin is a float with the duty cycle, from 0.0 to 1.0 inclusive.
+# Values outside that range get set to the nearest valid value.
 def send_pwm_to_teensy(channel):
     addr = channel + 2
-    data = int(h['pwm_%d' % channel] * 0xff)
+    hal_value = h['pwm_%d' % channel]
+    if math.isnan(hal_value) or hal_value < 0.0:
+        hal_value = 0.0
+    elif hal_value > 1.0:
+        hal_value = 1.0
+    data = int(hal_value * 0xff)
     send_to_teensy(addr, data)
 
 
