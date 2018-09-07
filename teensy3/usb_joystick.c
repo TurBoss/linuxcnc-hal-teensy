@@ -1,6 +1,6 @@
 /* Teensyduino Core Library
  * http://www.pjrc.com/teensy/
- * Copyright (c) 2013 PJRC.COM, LLC.
+ * Copyright (c) 2017 PJRC.COM, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -10,10 +10,10 @@
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
  *
- * 1. The above copyright notice and this permission notice shall be 
+ * 1. The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  *
- * 2. If the Software is incorporated into a build system that allows 
+ * 2. If the Software is incorporated into a build system that allows
  * selection among a list of target devices, then similar target
  * devices manufactured by PJRC.COM must be included in the list of
  * target devices and selectable in the same manner.
@@ -35,9 +35,10 @@
 #include <string.h> // for memcpy()
 
 #ifdef JOYSTICK_INTERFACE // defined by usb_dev.h -> usb_desc.h
+#if F_CPU >= 20000000
 
 
-uint32_t usb_joystick_data[3];
+uint32_t usb_joystick_data[(JOYSTICK_SIZE+3)/4];
 
 
 // Maximum number of transmit packets to queue so we don't starve other endpoints for memory
@@ -48,14 +49,29 @@ static uint8_t transmit_previous_timeout=0;
 // When the PC isn't listening, how long do we wait before discarding data?
 #define TX_TIMEOUT_MSEC 30
 
-#if F_CPU == 96000000
+#if F_CPU == 240000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1600)
+#elif F_CPU == 216000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1440)
+#elif F_CPU == 192000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1280)
+#elif F_CPU == 180000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1200)
+#elif F_CPU == 168000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1100)
+#elif F_CPU == 144000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 932)
+#elif F_CPU == 120000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 764)
+#elif F_CPU == 96000000
   #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 596)
+#elif F_CPU == 72000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 512)
 #elif F_CPU == 48000000
   #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 428)
 #elif F_CPU == 24000000
   #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 262)
 #endif
-
 
 
 
@@ -83,8 +99,8 @@ int usb_joystick_send(void)
                 yield();
         }
 	transmit_previous_timeout = 0;
-	memcpy(tx_packet->buf, usb_joystick_data, 12);
-        tx_packet->len = 12;
+	memcpy(tx_packet->buf, usb_joystick_data, JOYSTICK_SIZE);
+        tx_packet->len = JOYSTICK_SIZE;
         usb_tx(JOYSTICK_ENDPOINT, tx_packet);
 	//serial_print("ok\n");
         return 0;
@@ -92,5 +108,5 @@ int usb_joystick_send(void)
 
 
 
-
+#endif // F_CPU
 #endif // JOYSTICK_INTERFACE

@@ -1,6 +1,6 @@
 /* Teensyduino Core Library
  * http://www.pjrc.com/teensy/
- * Copyright (c) 2013 PJRC.COM, LLC.
+ * Copyright (c) 2017 PJRC.COM, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -10,10 +10,10 @@
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
  *
- * 1. The above copyright notice and this permission notice shall be 
+ * 1. The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  *
- * 2. If the Software is incorporated into a build system that allows 
+ * 2. If the Software is incorporated into a build system that allows
  * selection among a list of target devices, then similar target
  * devices manufactured by PJRC.COM must be included in the list of
  * target devices and selectable in the same manner.
@@ -29,17 +29,32 @@
  */
 
 
+#include <Arduino.h>
 #include "AudioStream.h"
 
+#if defined(__MKL26Z64__)
+  #define MAX_AUDIO_MEMORY 6144
+#elif defined(__MK20DX128__)
+  #define MAX_AUDIO_MEMORY 12288
+#elif defined(__MK20DX256__)
+  #define MAX_AUDIO_MEMORY 49152
+#elif defined(__MK64FX512__)
+  #define MAX_AUDIO_MEMORY 163840
+#elif defined(__MK66FX1M0__)
+  #define MAX_AUDIO_MEMORY 229376
+#endif
+
+#define NUM_MASKS  (((MAX_AUDIO_MEMORY / AUDIO_BLOCK_SAMPLES / 2) + 31) / 32)
 
 audio_block_t * AudioStream::memory_pool;
-uint8_t AudioStream::memory_pool_size = 0;
-uint32_t AudioStream::memory_pool_available_mask;
+uint32_t AudioStream::memory_pool_available_mask[NUM_MASKS];
+uint16_t AudioStream::memory_pool_first_mask;
 
 uint16_t AudioStream::cpu_cycles_total = 0;
 uint16_t AudioStream::cpu_cycles_total_max = 0;
-uint8_t AudioStream::memory_used = 0;
-uint8_t AudioStream::memory_used_max = 0;
+uint16_t AudioStream::memory_used = 0;
+uint16_t AudioStream::memory_used_max = 0;
+
 
 
 
@@ -47,38 +62,67 @@ uint8_t AudioStream::memory_used_max = 0;
 // placing them all onto the free list
 void AudioStream::initialize_memory(audio_block_t *data, unsigned int num)
 {
+	unsigned int i;
+	unsigned int maxnum = MAX_AUDIO_MEMORY / AUDIO_BLOCK_SAMPLES / 2;
+
 	//Serial.println("AudioStream initialize_memory");
+	//delay(10);
+	if (num > maxnum) num = maxnum;
+	__disable_irq();
 	memory_pool = data;
-	if (num > 31) num = 31;
-	memory_pool_size = num;
-	memory_pool_available_mask = 0xFFFFFFFF;
-	for (unsigned int i=0; i < num; i++) {
+	memory_pool_first_mask = 0;
+	for (i=0; i < NUM_MASKS; i++) {
+		memory_pool_available_mask[i] = 0;
+	}
+	for (i=0; i < num; i++) {
+		memory_pool_available_mask[i >> 5] |= (1 << (i & 0x1F));
+	}
+	for (i=0; i < num; i++) {
 		data[i].memory_pool_index = i;
 	}
+	__enable_irq();
+
 }
 
 // Allocate 1 audio data block.  If successful
 // the caller is the only owner of this new block
 audio_block_t * AudioStream::allocate(void)
 {
-	uint32_t n, avail;
+	uint32_t n, index, avail;
+	uint32_t *p, *end;
 	audio_block_t *block;
-	uint8_t used;
+	uint32_t used;
 
+	p = memory_pool_available_mask;
+	end = p + NUM_MASKS;
 	__disable_irq();
-	avail = memory_pool_available_mask;
-	n = __builtin_clz(avail);
-	if (n >= memory_pool_size) {
-		__enable_irq();
-		return NULL;
+	index = memory_pool_first_mask;
+	p += index;
+	while (1) {
+		if (p >= end) {
+			__enable_irq();
+			//Serial.println("alloc:null");
+			return NULL;
+		}
+		avail = *p;
+		if (avail) break;
+		index++;
+		p++;
 	}
-	memory_pool_available_mask = avail & ~(0x80000000 >> n);
+	n = __builtin_clz(avail);
+	avail &= ~(0x80000000 >> n);
+	*p = avail;
+	if (!avail) index++;
+	memory_pool_first_mask = index;
 	used = memory_used + 1;
 	memory_used = used;
 	__enable_irq();
-	block = memory_pool + n;
+	index = p - memory_pool_available_mask;
+	block = memory_pool + ((index << 5) + (31 - n));
 	block->ref_count = 1;
 	if (used > memory_used_max) memory_used_max = used;
+	//Serial.print("alloc:");
+	//Serial.println((uint32_t)block, HEX);
 	return block;
 }
 
@@ -87,12 +131,18 @@ audio_block_t * AudioStream::allocate(void)
 // returned to the free pool
 void AudioStream::release(audio_block_t *block)
 {
-	uint32_t mask = (0x80000000 >> block->memory_pool_index);
+	//if (block == NULL) return;
+	uint32_t mask = (0x80000000 >> (31 - (block->memory_pool_index & 0x1F)));
+	uint32_t index = block->memory_pool_index >> 5;
+
 	__disable_irq();
 	if (block->ref_count > 1) {
 		block->ref_count--;
 	} else {
-		memory_pool_available_mask |= mask;
+		//Serial.print("reles:");
+		//Serial.println((uint32_t)block, HEX);
+		memory_pool_available_mask[index] |= mask;
+		if (index < memory_pool_first_mask) memory_pool_first_mask = index;
 		memory_used--;
 	}
 	__enable_irq();
@@ -101,8 +151,10 @@ void AudioStream::release(audio_block_t *block)
 // Transmit an audio data block
 // to all streams that connect to an output.  The block
 // becomes owned by all the recepients, but also is still
-// owned by this object.  Normally, a block is released
-// after it's transmitted.
+// owned by this object.  Normally, a block must be released
+// by the caller after it's transmitted.  This allows the
+// caller to transmit to same block to more than 1 output,
+// and then release it once after all transmit calls.
 void AudioStream::transmit(audio_block_t *block, unsigned char index)
 {
 	for (AudioConnection *c = destination_list; c != NULL; c = c->next_dest) {
@@ -151,20 +203,85 @@ void AudioConnection::connect(void)
 {
 	AudioConnection *p;
 
+	if (isConnected) return;
 	if (dest_index > dst.num_inputs) return;
 	__disable_irq();
 	p = src.destination_list;
 	if (p == NULL) {
 		src.destination_list = this;
 	} else {
-		while (p->next_dest) p = p->next_dest;
+		while (p->next_dest) {
+			if (&p->src == &this->src && &p->dst == &this->dst
+				&& p->src_index == this->src_index && p->dest_index == this->dest_index) {
+				//Source and destination already connected through another connection, abort
+				__enable_irq();
+				return;
+			}
+			p = p->next_dest;
+		}
 		p->next_dest = this;
 	}
+	this->next_dest = NULL;
+	src.numConnections++;
 	src.active = true;
+
+	dst.numConnections++;
 	dst.active = true;
+
+	isConnected = true;
+
 	__enable_irq();
 }
 
+void AudioConnection::disconnect(void)
+{
+	AudioConnection *p;
+
+	if (!isConnected) return;
+	if (dest_index > dst.num_inputs) return;
+	__disable_irq();
+	// Remove destination from source list
+	p = src.destination_list;
+	if (p == NULL) {
+		return;
+	} else if (p == this) {
+		if (p->next_dest) {
+			src.destination_list = next_dest;
+		} else {
+			src.destination_list = NULL;
+		}
+	} else {
+		while (p) {
+			if (p == this) {
+				if (p->next_dest) {
+					p = next_dest;
+					break;
+				} else {
+					p = NULL;
+					break;
+				}
+			}
+			p = p->next_dest;
+		}
+	}
+	//Remove possible pending src block from destination
+	dst.inputQueue[dest_index] = NULL;
+
+	//Check if the disconnected AudioStream objects should still be active
+	src.numConnections--;
+	if (src.numConnections == 0) {
+		src.active = false;
+	}
+
+	dst.numConnections--;
+	if (dst.numConnections == 0) {
+		dst.active = false;
+	}
+
+	isConnected = false;
+
+	__enable_irq();
+}
 
 
 // When an object has taken responsibility for calling update_all()
@@ -177,7 +294,7 @@ bool AudioStream::update_scheduled = false;
 bool AudioStream::update_setup(void)
 {
 	if (update_scheduled) return false;
-	NVIC_SET_PRIORITY(IRQ_SOFTWARE, 0xFF); // 0xFF = lowest priority
+	NVIC_SET_PRIORITY(IRQ_SOFTWARE, 208); // 255 = lowest priority
 	NVIC_ENABLE_IRQ(IRQ_SOFTWARE);
 	update_scheduled = true;
 	return true;

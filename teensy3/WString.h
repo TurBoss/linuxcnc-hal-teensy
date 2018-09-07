@@ -28,6 +28,10 @@
 #include <ctype.h>
 #include "avr_functions.h"
 
+// Not needed here, but some libs assume WString.h or Print.h
+// gives them PROGMEM and other AVR stuff.
+#include "avr/pgmspace.h"
+
 // When compiling programs with this class, the following gcc parameters
 // dramatically increase performance and memory (RAM) efficiency, typically
 // with little or no increase in code size.
@@ -53,7 +57,7 @@ public:
 	String(const char *cstr = (const char *)NULL);
 	String(const __FlashStringHelper *pgmstr);
 	String(const String &str);
-	#ifdef __GXX_EXPERIMENTAL_CXX0X__
+	#if __cplusplus >= 201103L || defined(__GXX_EXPERIMENTAL_CXX0X__)
 	String(String &&rval);
 	String(StringSumHelper &&rval);
 	#endif
@@ -78,7 +82,7 @@ public:
 	String & operator = (const String &rhs);
 	String & operator = (const char *cstr);
 	String & operator = (const __FlashStringHelper *pgmstr);
-	#ifdef __GXX_EXPERIMENTAL_CXX0X__
+	#if __cplusplus >= 201103L || defined(__GXX_EXPERIMENTAL_CXX0X__)
 	String & operator = (String &&rval);
 	String & operator = (StringSumHelper &&rval);
 	#endif
@@ -178,7 +182,7 @@ public:
 	String & replace(char find, char replace);
 	String & replace(const String& find, const String& replace);
 	String & remove(unsigned int index);
-	String & remove(unsigned int index, unsigned int count); 
+	String & remove(unsigned int index, unsigned int count);
 	String & toLowerCase(void);
 	String & toUpperCase(void);
 	String & trim(void);
@@ -196,6 +200,13 @@ protected:
 	void init(void);
 	unsigned char changeBuffer(unsigned int maxStrLen);
 	String & append(const char *cstr, unsigned int length);
+private:
+	// allow for "if (s)" without the complications of an operator bool().
+	// for more information http://www.artima.com/cppsource/safebool.html
+	typedef void (String::*StringIfHelperType)() const;
+	void StringIfHelper() const {}
+public:
+	operator StringIfHelperType() const { return buffer ? &String::StringIfHelper : 0; }
 };
 
 class StringSumHelper : public String

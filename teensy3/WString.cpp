@@ -19,7 +19,7 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include "WString.h"
+#include <Arduino.h>
 
 
 /*********************************************/
@@ -44,7 +44,7 @@ String::String(const String &value)
 	*this = value;
 }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L || defined(__GXX_EXPERIMENTAL_CXX0X__)
 String::String(String &&rval)
 {
 	init();
@@ -198,7 +198,7 @@ String & String::operator = (const String &rhs)
 	return copy(rhs.buffer, rhs.len);
 }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L || defined(__GXX_EXPERIMENTAL_CXX0X__)
 String & String::operator = (String &&rval)
 {
 	if (this != &rval) move(rval);
@@ -248,8 +248,19 @@ String & String::append(const String &s)
 String & String::append(const char *cstr, unsigned int length)
 {
 	unsigned int newlen = len + length;
+	bool self = false;
+	unsigned int buffer_offset; 
+	if ( (cstr >= buffer) && (cstr < (buffer+len) ) ) {
+		self = true;
+		buffer_offset = (unsigned int)(cstr-buffer);
+	}
 	if (length == 0 || !reserve(newlen)) return *this;
-	strcpy(buffer + len, cstr);
+	if ( self ) {
+		memcpy(buffer + len, buffer+buffer_offset, length);
+		buffer[newlen] = 0;
+		}
+	else
+		strcpy(buffer + len, cstr);
 	len = newlen;
 	return *this;
 }
@@ -549,7 +560,7 @@ int String::lastIndexOf( char theChar ) const
 
 int String::lastIndexOf(char ch, unsigned int fromIndex) const
 {
-	if (fromIndex >= len || fromIndex < 0) return -1;
+	if (fromIndex >= len) return -1;
 	char tempchar = buffer[fromIndex + 1];
 	buffer[fromIndex + 1] = '\0';
 	char* temp = strrchr( buffer, ch );
@@ -565,7 +576,7 @@ int String::lastIndexOf(const String &s2) const
 
 int String::lastIndexOf(const String &s2, unsigned int fromIndex) const
 {
-  	if (s2.len == 0 || len == 0 || s2.len > len || fromIndex < 0) return -1;
+  	if (s2.len == 0 || len == 0 || s2.len > len) return -1;
 	if (fromIndex >= len) fromIndex = len - 1;
 	int found = -1;
 	for (char *p = buffer; p <= buffer + fromIndex; p++) {

@@ -1,6 +1,6 @@
 /* Teensyduino Core Library
  * http://www.pjrc.com/teensy/
- * Copyright (c) 2013 PJRC.COM, LLC.
+ * Copyright (c) 2017 PJRC.COM, LLC.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -10,10 +10,10 @@
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
  *
- * 1. The above copyright notice and this permission notice shall be 
+ * 1. The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
  *
- * 2. If the Software is incorporated into a build system that allows 
+ * 2. If the Software is incorporated into a build system that allows
  * selection among a list of target devices, then similar target
  * devices manufactured by PJRC.COM must be included in the list of
  * target devices and selectable in the same manner.
@@ -36,8 +36,10 @@
 
 // defined by usb_dev.h -> usb_desc.h
 #if defined(CDC_STATUS_INTERFACE) && defined(CDC_DATA_INTERFACE)
+#if F_CPU >= 20000000
 
 uint32_t usb_cdc_line_coding[2];
+volatile uint32_t usb_cdc_line_rtsdtr_millis;
 volatile uint8_t usb_cdc_line_rtsdtr=0;
 volatile uint8_t usb_cdc_transmit_flush_timer=0;
 
@@ -147,8 +149,24 @@ void usb_serial_flush_input(void)
 // software.  If it's too long, we stall the user's program when no software is running.
 #define TX_TIMEOUT_MSEC 70
 
-#if F_CPU == 96000000
+#if F_CPU == 240000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1600)
+#elif F_CPU == 216000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1440)
+#elif F_CPU == 192000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1280)
+#elif F_CPU == 180000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1200)
+#elif F_CPU == 168000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 1100)
+#elif F_CPU == 144000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 932)
+#elif F_CPU == 120000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 764)
+#elif F_CPU == 96000000
   #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 596)
+#elif F_CPU == 72000000
+  #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 512)
 #elif F_CPU == 48000000
   #define TX_TIMEOUT (TX_TIMEOUT_MSEC * 428)
 #elif F_CPU == 24000000
@@ -171,6 +189,7 @@ int usb_serial_putchar(uint8_t c)
 
 int usb_serial_write(const void *buffer, uint32_t size)
 {
+	uint32_t ret = size;
 	uint32_t len;
 	uint32_t wait_count;
 	const uint8_t *src = (const uint8_t *)buffer;
@@ -213,7 +232,32 @@ int usb_serial_write(const void *buffer, uint32_t size)
 		usb_cdc_transmit_flush_timer = TRANSMIT_FLUSH_TIMEOUT;
 	}
 	tx_noautoflush = 0;
-	return 0;
+	return ret;
+}
+
+int usb_serial_write_buffer_free(void)
+{
+	uint32_t len;
+
+	tx_noautoflush = 1;
+	if (!tx_packet) {
+		if (!usb_configuration ||
+		  usb_tx_packet_count(CDC_TX_ENDPOINT) >= TX_PACKET_LIMIT ||
+		  (tx_packet = usb_malloc()) == NULL) {
+			tx_noautoflush = 0;
+			return 0;
+		}
+	}
+	len = CDC_TX_SIZE - tx_packet->index;
+	// TODO: Perhaps we need "usb_cdc_transmit_flush_timer = TRANSMIT_FLUSH_TIMEOUT"
+	// added here, so the SOF interrupt can't take away the available buffer
+	// space we just promised the user could write without blocking?
+	// But does this come with other performance downsides?  Could it lead to
+	// buffer data never actually transmitting in some usage cases?  More
+	// investigation is needed.
+	// https://github.com/PaulStoffregen/cores/issues/10#issuecomment-61514955
+	tx_noautoflush = 0;
+	return len;
 }
 
 void usb_serial_flush_output(void)
@@ -257,9 +301,5 @@ void usb_serial_flush_callback(void)
 
 
 
-
-
-
-
-
+#endif // F_CPU
 #endif // CDC_STATUS_INTERFACE && CDC_DATA_INTERFACE
